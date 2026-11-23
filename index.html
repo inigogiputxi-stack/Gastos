@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mis gastos</title>
+<link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Gastos"><meta name="theme-color" content="#0f6e56">
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--tx:#1d1d1b;--mu:#6b6a65;--ac:#0f6e56;--rd:#b3261e;--bd:#e4e2da;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161614;--card:#222220;--tx:#f1efe8;--mu:#a09e96;--ac:#5dcaa5;--rd:#f09595;--bd:#35332f}}
+:root[data-theme="dark"]{--bg:#161614;--card:#222220;--tx:#f1efe8;--mu:#a09e96;--ac:#5dcaa5;--rd:#f09595;--bd:#35332f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,Arial,sans-serif;max-width:640px;margin:0 auto;padding:14px}
+h1{font-size:18px;margin:0 0 10px}h2{font-size:15px;margin:0 0 8px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px}
+.tabs{display:flex;gap:6px;margin:10px 0}
+.tabs button,.btn{flex:1;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:9px;font:inherit;cursor:pointer}
+.tabs button.on{background:var(--ac);color:var(--bg);border-color:var(--ac)}
+.btn{flex:none;padding:9px 12px}
+.big{font-size:40px;font-weight:700;line-height:1.1}
+.mu{color:var(--mu);font-size:13px}
+.row{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd)}
+.row:last-child{border:0}
+.bar{display:grid;grid-template-columns:96px 1fr 70px;gap:8px;align-items:center;margin:6px 0;font-size:13px}
+.bar i{display:block;height:12px;border-radius:6px;background:var(--ac)}
+.bar b{text-align:right;font-weight:600}
+.red{color:var(--rd)}
+.wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}td,th{padding:5px 4px;text-align:right;border-bottom:1px solid var(--bd)}td:first-child,th:first-child{text-align:left}
+</style></head><body>
+<h1>Mis gastos</h1>
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<label class="btn">Cargar mi Excel<input id="f" type="file" accept=".xlsx,.xls,.csv" hidden></label>
+<button class="btn" id="demo">Ver ejemplo</button><button class="btn" onclick="clearSaved()">Borrar datos</button></div>
+<div class="mu" id="msg" style="margin-top:6px">Carga el Excel con la hoja “Gastos”. Todo se calcula y se guarda en este dispositivo; no se sube nada.</div>
+<div class="tabs" id="tabs"></div><div id="pers"></div>
+<div id="out"></div>
+<script src="xlsx.full.min.js"></script>
+<script>
+var PCT={"alojamiento":1,"súper":.95,"transporte":.9,"comer fuera":.8,"ocio":.8,"compras":.8,"otros":.8,"suscripciones":.7,"comisiones":0};
+var rows=[],scope="Todo",persona="Todas",LISTS={cats:[],pers:[]},TIPO={"suscripciones":"suscripción","comisiones":"comisión","alojamiento":"fijo"};
+var E=function(n){return n.toLocaleString("es-ES",{style:"currency",currency:"EUR",maximumFractionDigits:0})};
+var E2=function(n){return n.toLocaleString("es-ES",{style:"currency",currency:"EUR"})};
+var esc=function(s){return String(s).replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c]})};
+function demoRows(){var d=[];
+function a(am,m,c,v,mo,cb){d.push({am:am,m:m,c:c,eur:v*(cb||1),mo:mo||"EUR",cb:cb||1,p:({"Gimnasio Fit":"Iñigo","Zara":"Susana","Cine":"Alain","Glovo":"Sophia"})[m]||"Casa"})}
+a("Hogar","Alquiler","alojamiento",850);[62,48,71,55].forEach(function(v){a("Hogar","Mercadona","súper",v)});a("Hogar","Eroski","súper",40);
+a("Hogar","Netflix","suscripciones",13.99);a("Hogar","Spotify","suscripciones",10.99);a("Hogar","Gimnasio Fit","suscripciones",39.9);
+[22,19,24,27].forEach(function(v){a("Hogar","Glovo","comer fuera",v)});a("Hogar","Bar Txoko","comer fuera",18);a("Hogar","Bar Txoko","comer fuera",25);
+a("Hogar","Cine","ocio",24);a("Hogar","Amazon","compras",59);a("Hogar","Zara","compras",45);a("Hogar","Gasolina","transporte",55);a("Hogar","Gasolina","transporte",50);
+a("Hogar","Comisión mantenimiento","comisiones",5);a("Hogar","Hotel Lisboa","alojamiento",120,"USD",.92);
+a("Empresa","Alquiler local","alojamiento",600);a("Empresa","Adobe","suscripciones",60.5);a("Empresa","Google Workspace","suscripciones",14);
+a("Empresa","Comisión TPV","comisiones",38);a("Empresa","Comisión TPV","comisiones",41);a("Empresa","Restaurante Zubia","comer fuera",96);
+a("Empresa","Gasolina furgoneta","transporte",80);a("Empresa","Amazon Business","compras",210);return d}
+function parse(js){var out=[];js.forEach(function(r){
+var tr=String(r["Transferencia propia"]||"").trim().toLowerCase();if(tr==="sí"||tr==="si")return;
+var imp=Number(r["Importe"]);if(!imp)return;var cb=Number(r["Cambio a EUR"])||1;
+var am=String(r["Ámbito"]||"Hogar").trim();var c=String(r["Categoría"]||"otros").trim().toLowerCase();
+out.push({am:am,m:String(r["Comercio"]||"Sin nombre").trim(),c:c,eur:imp*cb,mo:String(r["Moneda"]||"EUR"),cb:cb,p:String(r["Persona"]||"Casa").trim()})});return out}
+document.getElementById("f").onchange=function(e){var fl=e.target.files[0];if(!fl)return;var rd=new FileReader();
+rd.onload=function(){try{var wb=XLSX.read(rd.result,{type:"array"});var ws=wb.Sheets["Gastos"]||wb.Sheets[wb.SheetNames[0]];
+rows=parse(XLSX.utils.sheet_to_json(ws,{defval:""}));readLists(wb);save(rows,fl.name);document.getElementById("msg").textContent=rows.length+" movimientos cargados (transferencias propias excluidas).";render()}
+catch(x){document.getElementById("msg").textContent="No he podido leer el archivo."}};rd.readAsArrayBuffer(fl)};
+document.getElementById("demo").onclick=function(){rows=demoRows();document.getElementById("msg").textContent="Datos de ejemplo.";render()};
+function readLists(wb){persona="Todas";var ws=wb.Sheets["Listas"];if(!ws)return;LISTS={cats:[],pers:[]};PCT={};TIPO={};
+XLSX.utils.sheet_to_json(ws,{defval:""}).forEach(function(r){var c=String(r["Categorías"]).trim().toLowerCase();
+if(c){LISTS.cats.push(c);var tp=r["Tope plan %"];if(tp!==""&&!isNaN(Number(tp)))PCT[c]=Number(tp)/100;var t=String(r["Tipo"]).trim().toLowerCase();if(t)TIPO[c]=t}
+var p=String(r["Personas"]).trim();if(p)LISTS.pers.push(p)})}
+function db(cb){var q=indexedDB.open("gastos",1);q.onupgradeneeded=function(){q.result.createObjectStore("k")};q.onsuccess=function(){cb(q.result)}}
+function save(r,n){try{db(function(d){d.transaction("k","readwrite").objectStore("k").put({rows:r,name:n,at:Date.now(),L:LISTS,P:PCT,T:TIPO},"last")})}catch(x){}}
+function restore(){try{db(function(d){var g=d.transaction("k").objectStore("k").get("last");g.onsuccess=function(){var v=g.result;if(v&&v.rows&&v.rows.length){rows=v.rows;if(v.L){LISTS=v.L;PCT=v.P;TIPO=v.T}document.getElementById("msg").textContent="Último Excel guardado: "+v.name+" · "+new Date(v.at).toLocaleDateString("es-ES");render()}}})}catch(x){}}
+function clearSaved(){try{db(function(d){d.transaction("k","readwrite").objectStore("k").delete("last")})}catch(x){}rows=[];document.getElementById("out").innerHTML="";document.getElementById("msg").textContent="Datos guardados borrados."}
+function group(a,k){var g={};a.forEach(function(r){var x=g[r[k]]||(g[r[k]]={n:0,t:0});x.n++;x.t+=r.eur});return g}
+function render(){
+var tb=document.getElementById("tabs");tb.innerHTML="";["Todo","Hogar","Empresa"].forEach(function(s){var b=document.createElement("button");b.textContent=s;b.className=s===scope?"on":"";b.onclick=function(){scope=s;render()};tb.appendChild(b)});
+var sc=rows.filter(function(r){return scope==="Todo"||r.am===scope});
+var d=sc.filter(function(r){return persona==="Todas"||r.p===persona});var o=document.getElementById("out");
+var pl=["Todas"];LISTS.pers.concat(rows.map(function(r){return r.p})).forEach(function(x){if(pl.indexOf(x)<0)pl.push(x)});
+var pe=document.getElementById("pers");pe.innerHTML='<select class="btn" style="width:100%;margin-bottom:10px" id="ps">'+pl.map(function(x){return '<option'+(x===persona?' selected':'')+'>'+esc(x)+'</option>'}).join("")+'</select>';
+document.getElementById("ps").onchange=function(){persona=this.value;render()};
+if(!d.length){o.innerHTML='<div class="card mu">Sin datos en este ámbito.</div>';return}
+var tot=d.reduce(function(s,r){return s+r.eur},0);var bc=group(d,"c");
+var cs=Object.keys(bc).sort(function(a,b){return bc[b].t-bc[a].t});var mx=bc[cs[0]].t||1;
+var h='<div class="card"><div class="mu">Total del mes · '+scope+'</div><div class="big">'+E2(tot)+'</div>';
+var fx={};d.forEach(function(r){if(r.mo!=="EUR")fx[r.mo]=r.cb});var fk=Object.keys(fx);
+if(fk.length)h+='<div class="mu">Cambio usado: '+fk.map(function(k){return "1 "+esc(k)+" = "+fx[k]+" €"}).join(" · ")+'</div>';
+h+='</div><div class="card"><h2>Por categoría</h2>'+cs.map(function(c){return '<div class="bar"><span>'+esc(c)+'</span><span><i style="width:'+Math.max(2,bc[c].t/mx*100)+'%"></i></span><b>'+E(bc[c].t)+'</b></div>'}).join("")+'</div>';
+var bp=group(sc,"p"),pk=Object.keys(bp).sort(function(a,b){return bp[b].t-bp[a].t});
+if(pk.length>1){var pm=bp[pk[0]].t||1;h+='<div class="card"><h2>Por persona</h2>'+pk.map(function(p){return '<div class="bar"><span>'+esc(p)+'</span><span><i style="width:'+Math.max(2,bp[p].t/pm*100)+'%"></i></span><b>'+E(bp[p].t)+'</b></div>'}).join("")+'</div>'}
+h+='<div class="card"><h2>Tus 3 categorías más caras</h2>'+cs.slice(0,3).map(function(c){var m=group(d.filter(function(r){return r.c===c}),"m");
+var mk=Object.keys(m).sort(function(a,b){return m[b].t-m[a].t}).slice(0,3);
+return '<div style="margin-bottom:8px"><b>'+esc(c)+' · '+E(bc[c].t)+'</b>'+mk.map(function(k){return '<div class="row mu"><span>'+esc(k)+(m[k].n>1?' ×'+m[k].n:'')+'</span><span>'+E(m[k].t)+'</span></div>'}).join("")+'</div>'}).join("")+'</div>';
+var mm=group(d,"m"),al=[];
+al.push("<b>"+esc(cs[0])+"</b> se lleva el "+Math.round(bc[cs[0]].t/tot*100)+"% de todo el gasto.");
+var rep=Object.keys(mm).filter(function(k){return mm[k].n>=3&&mm[k].t/mm[k].n<30}).sort(function(a,b){return mm[b].n-mm[a].n})[0];
+if(rep)al.push("<b>"+esc(rep)+"</b>: "+mm[rep].n+" cobros pequeños este mes ("+E(mm[rep].t)+").");
+var cm=0;cs.forEach(function(c){if(TIPO[c]==="comisión")cm+=bc[c].t});if(cm>0)al.push("Pagas <b>"+E(cm)+"</b> en comisiones: es dinero sin contrapartida.");
+var big=d.slice().sort(function(a,b){return b.eur-a.eur})[0];al.push("Tu mayor gasto suelto: <b>"+esc(big.m)+"</b> ("+E(big.eur)+").");
+h+='<div class="card"><h2>Cuidado con</h2>'+al.slice(0,3).map(function(x){return '<div class="row"><span>'+x+'</span></div>'}).join("")+'</div>';
+var br=[];Object.keys(mm).forEach(function(k){var rs=d.filter(function(r){return r.m===k});var c=rs[0].c;var t=mm[k].t,n=mm[k].n;
+var ty=TIPO[c]||"";if(ty==="suscripción")br.push({k:k,t:t,w:"suscripción"});else if(ty==="comisión")br.push({k:k,t:t,w:"comisión"});
+else if(ty!=="fijo"&&n>=3&&t/n<30)br.push({k:k,t:t,w:"capricho repetido ×"+n})});
+br.sort(function(a,b){return b.t-a.t});var yr=br.reduce(function(s,x){return s+x.t*12},0);
+h+='<div class="card"><h2>La bronca</h2><div class="mu">Si esto se repite todo el año (×12):</div><div class="big red">'+E(yr)+'</div>'+
+(br.length?br.map(function(x){return '<div class="row"><span>'+esc(x.k)+' <span class="mu">'+x.w+'</span></span><span class="red">'+E(x.t*12)+'/año</span></div>'}).join(""):'<div class="mu">Nada llamativo.</div>')+
+'<div class="mu" style="margin-top:6px">No sé cuáles de tus suscripciones no usas: revísalas tú una a una.</div></div>';
+var bt=0,sv=0,tr='';cs.forEach(function(c){var p=PCT[c]===undefined?.8:PCT[c];var b=bc[c].t*p;bt+=b;tr+='<tr><td>'+esc(c)+'</td><td>'+E(bc[c].t)+'</td><td>'+E(b)+'</td></tr>'});sv=tot-bt;
+h+='<div class="card"><h2>Plan para el mes que viene</h2><div class="row"><span>Presupuesto total</span><b>'+E(bt)+'</b></div><div class="row"><span>Puedes gastar al día</span><b>'+E2(bt/30)+'</b></div><div class="row"><span>Ahorro si lo cumples</span><b style="color:var(--ac)">'+E(sv)+'</b></div>'+
+'<div class="wrap"><table><tr><th>Categoría</th><th>Este mes</th><th>Tope</th></tr>'+tr+'</table></div><div class="mu" style="margin-top:6px">Topes = gasto actual × un porcentaje fijo por categoría (alojamiento 100%, súper 95%, suscripciones 70%, comisiones 0%, resto 80–90%). Es una regla mía, no un dato tuyo.</div></div>';
+o.innerHTML=h}
+restore();if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js");
+</script></body></html>
