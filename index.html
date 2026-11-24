@@ -32,12 +32,12 @@ table{border-collapse:collapse;width:100%;font-size:13px}td,th{padding:5px 4px;t
 <label class="btn">Cargar mi Excel<input id="f" type="file" accept=".xlsx,.xls,.csv" hidden></label>
 <button class="btn" id="demo">Ver ejemplo</button><button class="btn" onclick="clearSaved()">Borrar datos</button><button class="btn" id="exp" onclick="exportar()">Exportar</button></div>
 <div class="mu" id="msg" style="margin-top:6px">Carga el Excel con la hoja “Gastos”. Todo se calcula y se guarda en este dispositivo; no se sube nada.</div>
-<div class="tabs" id="tabs"></div><div id="pers"></div>
+<div class="mu" id="diag" style="margin-top:6px"></div><div class="tabs" id="tabs"></div><div id="pers"></div>
 <div id="out"></div>
 <script src="xlsx.full.min.js"></script>
 <script>
 var PCT={"alojamiento":1,"súper":.95,"transporte":.9,"comer fuera":.8,"ocio":.8,"compras":.8,"otros":.8,"suscripciones":.7,"comisiones":0};
-var rows=[],scope="Todo",persona="Todas",month="",TOPE={},LISTS={cats:[],pers:[]},TIPO={"suscripciones":"suscripción","comisiones":"comisión","alojamiento":"fijo"};
+var rows=[],scope="Todo",persona="Todas",month="",TOPE={},IGN=0,SIGN="pos",swapDM=false,lastName="",LISTS={cats:[],pers:[]},TIPO={"suscripciones":"suscripción","comisiones":"comisión","alojamiento":"fijo"};
 var E=function(n){return n.toLocaleString("es-ES",{style:"currency",currency:"EUR",maximumFractionDigits:0})};
 var E2=function(n){return n.toLocaleString("es-ES",{style:"currency",currency:"EUR"})};
 var esc=function(s){return String(s).replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c]})};
@@ -51,17 +51,17 @@ a("Hogar","Comisión mantenimiento","comisiones",5);a("Hogar","Hotel Lisboa","al
 a("Empresa","Alquiler local","alojamiento",600);a("Empresa","Adobe","suscripciones",60.5);a("Empresa","Google Workspace","suscripciones",14);
 a("Empresa","Comisión TPV","comisiones",38);a("Empresa","Comisión TPV","comisiones",41);a("Empresa","Restaurante Zubia","comer fuera",96);
 a("Empresa","Gasolina furgoneta","transporte",80);a("Empresa","Amazon Business","compras",210);var e=[];d.forEach(function(r){e.push(Object.assign({},r,{ym:"2026-11"}));e.push(Object.assign({},r,{ym:"2026-10",eur:r.eur*(0.8+(r.m.length%5)/10)}))});return e}
-function parse(js){var out=[];js.forEach(function(r){
+function parse(js){var out=[],ng=0,ps=0;IGN=0;js.forEach(function(r){var q=Number(r["Importe"]);if(q<0)ng++;else if(q>0)ps++});SIGN=ng>ps?"neg":"pos";js.forEach(function(r){
 var tr=String(r["Transferencia propia"]||"").trim().toLowerCase();if(tr==="sí"||tr==="si")return;
-var imp=Number(r["Importe"]);if(!imp)return;var cb=Number(r["Cambio a EUR"])||1;
+var imp=Number(r["Importe"]);if(!imp)return;if(SIGN==="neg"){imp=-imp;if(imp<0){IGN++;return}}var cb=Number(r["Cambio a EUR"])||1;
 var am=String(r["Ámbito"]||"Hogar").trim();var c=String(r["Categoría"]||"otros").trim().toLowerCase();
-out.push({am:am,m:String(r["Comercio"]||"Sin nombre").trim(),c:c,eur:imp*cb,mo:String(r["Moneda"]||"EUR"),cb:cb,p:String(r["Persona"]||"Casa").trim(),ym:toYM(r["Fecha"])})});return out}
+out.push({am:am,m:String(r["Comercio"]||"Sin nombre").trim(),c:c,eur:imp*cb,mo:String(r["Moneda"]||"EUR"),cb:cb,p:String(r["Persona"]||"Casa").trim(),fd:r["Fecha"],ym:toYM(r["Fecha"],false)})});return out}
 document.getElementById("f").onchange=function(e){var fl=e.target.files[0];if(!fl)return;var rd=new FileReader();
 rd.onload=function(){try{var wb=XLSX.read(rd.result,{type:"array"});var ws=wb.Sheets["Gastos"]||wb.Sheets[wb.SheetNames[0]];
-rows=parse(XLSX.utils.sheet_to_json(ws,{defval:""}));readLists(wb);save(rows,fl.name);document.getElementById("msg").textContent=rows.length+" movimientos cargados (transferencias propias excluidas).";render()}
+rows=parse(XLSX.utils.sheet_to_json(ws,{defval:""}));readLists(wb);lastName=fl.name;autoDates();save(rows,fl.name);document.getElementById("msg").textContent=rows.length+" movimientos cargados (transferencias propias excluidas).";render()}
 catch(x){document.getElementById("msg").textContent="No he podido leer el archivo."}};rd.readAsArrayBuffer(fl)};
-document.getElementById("demo").onclick=function(){rows=demoRows();document.getElementById("msg").textContent="Datos de ejemplo.";render()};
-function toYM(v){var y,m,x;if(typeof v==="number"&&v>20000){var o=XLSX.SSF.parse_date_code(v);y=o.y;m=o.m}
+document.getElementById("demo").onclick=function(){SIGN="pos";IGN=0;swapDM=false;rows=demoRows();document.getElementById("msg").textContent="Datos de ejemplo.";render()};
+function toYM(v,sw){var y,m,x;if(typeof v==="number"&&v>20000){var o=XLSX.SSF.parse_date_code(v);y=o.y;m=o.m;if(sw&&o.d<=12)m=o.d}
 else{var s=String(v).trim();x=s.match(/^(\d{4})[-\/](\d{1,2})/);if(x){y=+x[1];m=+x[2]}else{x=s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})/);if(x){m=+x[2];y=+x[3];if(y<100)y+=2000}}}
 return y?y+"-"+("0"+m).slice(-2):"0000-00"}
 function monthsList(){var u={};rows.forEach(function(r){u[r.ym]=1});return Object.keys(u).sort().reverse()}
@@ -69,7 +69,7 @@ function mlabel(x,s){if(x==="0000-00")return "Sin fecha";var d=new Date(+x.slice
 function chart(cs,bc,lim,first){var W=340,H=215,L=34,B=64,T=10,R=6,n=cs.length,mx=1;cs.forEach(function(c){mx=Math.max(mx,bc[c].t,lim(c))});
 var bw=(W-L-R)/n,ph=H-T-B,y=function(v){return T+ph-v/mx*ph},s='<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="Gasto por categoría frente al límite">';
 [0,.5,1].forEach(function(g){s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(mx*g)+'" y2="'+y(mx*g)+'" stroke="var(--bd)"/><text x="'+(L-4)+'" y="'+(y(mx*g)+3)+'" text-anchor="end" font-size="9" fill="var(--mu)">'+Math.round(mx*g)+'</text>'});
-var pts=[];cs.forEach(function(c,i){var x=L+i*bw,h=bc[c].t/mx*ph,over=(TOPE[c]>0||!first)&&bc[c].t>lim(c)+.5;
+var pts=[];cs.forEach(function(c,i){var x=L+i*bw,h=Math.max(0,bc[c].t)/mx*ph,over=(TOPE[c]>0||!first)&&bc[c].t>lim(c)+.5;
 s+='<rect x="'+(x+bw*.15)+'" y="'+(T+ph-h)+'" width="'+(bw*.7)+'" height="'+h+'" rx="3" fill="'+(over?'var(--rd)':'var(--ac)')+'"/>';
 s+='<text transform="translate('+(x+bw/2+3)+','+(H-B+10)+') rotate(-40)" text-anchor="end" font-size="10" fill="var(--tx)">'+esc(c)+'</text>';
 pts.push([x+bw/2,y(lim(c))])});
@@ -82,16 +82,29 @@ Object.keys(cm).forEach(function(c){var t=0,l=[c];m2.forEach(function(x){var v=M
 var b=[["Mes","Ámbito","Comercio","Categoría","Persona","Importe EUR"]].concat(rows.map(function(r){return [mlabel(r.ym),r.am,r.m,r.c,r.p||"Casa",Math.round(r.eur*100)/100]}));
 var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(a),"Resumen mensual");XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(b),"Movimientos");
 XLSX.writeFile(wb,"Resumen_gastos_"+new Date().toISOString().slice(0,10)+".xlsx")}
+function setYM(sw){rows.forEach(function(r){if(r.fd!==undefined)r.ym=toYM(r.fd,sw)})}
+function nMonths(sw){var u={};rows.forEach(function(r){u[r.fd!==undefined?toYM(r.fd,sw):r.ym]=1});return Object.keys(u).length}
+function autoDates(){swapDM=nMonths(true)<nMonths(false);setYM(swapDM)}
+function swapDates(){swapDM=!swapDM;setYM(swapDM);save(rows,lastName);render()}
+function diag(){var el=document.getElementById("diag");if(!rows.length){el.innerHTML="";return}
+var c={},sf=0,neg=0,ex={},hasN=false;rows.forEach(function(r){c[r.ym]=(c[r.ym]||0)+1;if(r.ym==="0000-00")sf++;if(r.eur<0)neg++;if(typeof r.fd==="number")hasN=true;if(LISTS.cats.length&&LISTS.cats.indexOf(r.c)<0)ex[r.c]=1});
+var ks=Object.keys(c).sort().reverse(),t='<b>Datos leídos:</b> '+rows.length+' movimientos · '+ks.map(function(k){return mlabel(k,1)+" ("+c[k]+")"}).join(" · ");
+if(ks.length>1)t+='<br><span class="red">Hay varios meses. Si todo debería ser de uno solo, revisa las fechas.</span>';
+if(SIGN==="neg")t+='<br>Importes en negativo: los tomo como gastos'+(IGN?' y ignoro '+IGN+' ingresos':'')+'.';
+if(sf)t+='<br>'+sf+' sin fecha válida.';if(neg)t+='<br>'+neg+' devoluciones (restan).';
+var xs=Object.keys(ex);if(xs.length)t+='<br>Categorías que no están en Listas: '+xs.map(esc).join(", ")+'.';
+if(hasN)t+='<br>Fechas: '+(swapDM?'corregidas (día↔mes)':'tal como vienen')+' · <a href="#" onclick="swapDates();return false" style="color:var(--ac)">cambiar</a>';
+el.innerHTML=t}
 function readLists(wb){persona="Todas";var ws=wb.Sheets["Listas"];if(!ws)return;LISTS={cats:[],pers:[]};PCT={};TIPO={};TOPE={};
 XLSX.utils.sheet_to_json(ws,{defval:""}).forEach(function(r){var c=String(r["Categorías"]).trim().toLowerCase();
 if(c){LISTS.cats.push(c);var tp=r["Tope plan %"];if(tp!==""&&!isNaN(Number(tp)))PCT[c]=Number(tp)/100;var t=String(r["Tipo"]).trim().toLowerCase();if(t)TIPO[c]=t;var te=Number(r["Tope € mes"]);if(te>0)TOPE[c]=te}
 var p=String(r["Personas"]).trim();if(p)LISTS.pers.push(p)})}
 function db(cb){var q=indexedDB.open("gastos",1);q.onupgradeneeded=function(){q.result.createObjectStore("k")};q.onsuccess=function(){cb(q.result)}}
-function save(r,n){try{db(function(d){d.transaction("k","readwrite").objectStore("k").put({rows:r,name:n,at:Date.now(),L:LISTS,P:PCT,T:TIPO,K:TOPE},"last")})}catch(x){}}
-function restore(){try{db(function(d){var g=d.transaction("k").objectStore("k").get("last");g.onsuccess=function(){var v=g.result;if(v&&v.rows&&v.rows.length){rows=v.rows;rows.forEach(function(r){if(!r.ym)r.ym="0000-00"});if(v.L){LISTS=v.L;PCT=v.P;TIPO=v.T;TOPE=v.K||{}}document.getElementById("msg").textContent="Último Excel guardado: "+v.name+" · "+new Date(v.at).toLocaleDateString("es-ES");render()}}})}catch(x){}}
+function save(r,n){try{db(function(d){d.transaction("k","readwrite").objectStore("k").put({rows:r,name:n,at:Date.now(),L:LISTS,P:PCT,T:TIPO,K:TOPE,S:swapDM,G:SIGN,I:IGN},"last")})}catch(x){}}
+function restore(){try{db(function(d){var g=d.transaction("k").objectStore("k").get("last");g.onsuccess=function(){var v=g.result;if(v&&v.rows&&v.rows.length){rows=v.rows;rows.forEach(function(r){if(!r.ym)r.ym="0000-00"});if(v.L){LISTS=v.L;PCT=v.P;TIPO=v.T;TOPE=v.K||{}}swapDM=!!v.S;SIGN=v.G||"pos";IGN=v.I||0;lastName=v.name;document.getElementById("msg").textContent="Último Excel guardado: "+v.name+" · "+new Date(v.at).toLocaleDateString("es-ES");render()}}})}catch(x){}}
 function clearSaved(){try{db(function(d){d.transaction("k","readwrite").objectStore("k").delete("last")})}catch(x){}rows=[];document.getElementById("out").innerHTML="";document.getElementById("msg").textContent="Datos guardados borrados."}
 function group(a,k){var g={};a.forEach(function(r){var x=g[r[k]]||(g[r[k]]={n:0,t:0});x.n++;x.t+=r.eur});return g}
-function render(){
+function render(){diag();
 var tb=document.getElementById("tabs");tb.innerHTML="";["Todo","Hogar","Empresa"].forEach(function(s){var b=document.createElement("button");b.textContent=s;b.className=s===scope?"on":"";b.onclick=function(){scope=s;render()};tb.appendChild(b)});
 var ms=monthsList();if(month!=="Todos"&&ms.indexOf(month)<0)month=ms[0]||"Todos";
 var sc=rows.filter(function(r){return (scope==="Todo"||r.am===scope)&&(month==="Todos"||r.ym===month)});
@@ -111,6 +124,10 @@ h+='</div><div class="card"><h2>Por categoría</h2>'+cs.map(function(c){return '
 var pv={},pn={};if(month!=="Todos")rows.forEach(function(r){if((scope==="Todo"||r.am===scope)&&(persona==="Todas"||r.p===persona)&&r.ym<month&&r.ym!=="0000-00"){pv[r.c]=(pv[r.c]||0)+r.eur;pn[r.ym]=1}});
 var npv=Object.keys(pn).length,firstM=npv===0;
 function lim(c){if(TOPE[c]>0)return TOPE[c];var p=PCT[c]===undefined?.8:PCT[c];return (npv?(pv[c]||0)/npv:bc[c].t)*p}
+var sl=0;cs.forEach(function(c){sl+=lim(c)});var hasL=!firstM||Object.keys(TOPE).length>0,pm2=month==="Todos"?null:ms[ms.indexOf(month)+1],pt=0;
+if(pm2)rows.forEach(function(r){if(r.ym===pm2&&(scope==="Todo"||r.am===scope)&&(persona==="Todas"||r.p===persona))pt+=r.eur});
+var pc2=sl?Math.round(tot/sl*100):0;
+h+='<div class="card"><h2>Resumen</h2><div class="row"><span>Gastado</span><b>'+E(tot)+'</b></div>'+(hasL?'<div class="row"><span>Límite total</span><b>'+E(sl)+'</b></div><div class="bar" style="grid-template-columns:1fr 50px"><span><i style="width:'+Math.min(100,pc2)+'%'+(pc2>100?';background:var(--rd)':'')+'"></i></span><b>'+pc2+'%</b></div>':'<div class="mu">Aún no hay límite fiable: faltan meses anteriores o un “Tope € mes” en Listas.</div>')+(pm2&&pt?'<div class="row"><span>Mes anterior ('+mlabel(pm2,1)+')</span><b>'+E(pt)+' · '+(tot>=pt?"+":"")+Math.round((tot-pt)/pt*100)+'%</b></div>':'')+'</div>';
 h+='<div class="card"><h2>Gasto frente al límite</h2>'+chart(cs,bc,lim,firstM)+'<div class="mu">Columnas: gasto'+(month==="Todos"?" medio mensual":"")+' (rojo = supera el límite). Línea: límite. '+(firstM?'Sin meses anteriores el límite sale de este mismo mes, así que no se marca rojo salvo que pongas un “Tope € mes” en Listas.':'Límite = tu “Tope € mes” o, si no lo hay, la media de los meses anteriores × el % de Listas.')+'</div></div>';
 var base=rows.filter(function(r){return (scope==="Todo"||r.am===scope)&&(persona==="Todas"||r.p===persona)});
 var mm6=ms.slice(0,6).reverse(),mt={};
