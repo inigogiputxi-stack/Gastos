@@ -26,15 +26,17 @@ h1{font-size:18px;margin:0 0 10px}h2{font-size:15px;margin:0 0 8px}
 .red{color:var(--rd)}
 .wrap{overflow-x:auto}
 table{border-collapse:collapse;width:100%;font-size:13px}td,th{padding:5px 4px;text-align:right;border-bottom:1px solid var(--bd)}td:first-child,th:first-child{text-align:left}
+@media print{#bar,#msg,#diag,#tabs,#pers{display:none!important}body{max-width:none}.card{break-inside:avoid}}
 </style></head><body>
 <h1>Mis gastos</h1>
-<div style="display:flex;gap:8px;flex-wrap:wrap">
+<div id="bar" style="display:flex;gap:8px;flex-wrap:wrap">
 <label class="btn">Cargar mi Excel<input id="f" type="file" accept=".xlsx,.xls,.csv" hidden></label>
-<button class="btn" id="demo">Ver ejemplo</button><button class="btn" onclick="clearSaved()">Borrar datos</button><button class="btn" id="exp" onclick="exportar()">Exportar</button></div>
+<button class="btn" id="demo">Ver ejemplo</button><button class="btn" onclick="clearSaved()">Borrar datos</button><button class="btn" id="exp" onclick="exportar()">Exportar Excel</button><button class="btn" id="expd" onclick="exportarDash()">Exportar dashboard</button></div>
 <div class="mu" id="msg" style="margin-top:6px">Carga el Excel con la hoja “Gastos”. Todo se calcula y se guarda en este dispositivo; no se sube nada.</div>
 <div class="mu" id="diag" style="margin-top:6px"></div><div class="tabs" id="tabs"></div><div id="pers"></div>
 <div id="out"></div>
 <script src="xlsx.full.min.js"></script>
+<script src="html2canvas.min.js"></script>
 <script>
 var PCT={"alojamiento":1,"súper":.95,"transporte":.9,"comer fuera":.8,"ocio":.8,"compras":.8,"otros":.8,"suscripciones":.7,"comisiones":0};
 var rows=[],scope="Todo",persona="Todas",month="",TOPE={},IGN=0,SIGN="pos",swapDM=false,lastName="",LISTS={cats:[],pers:[]},TIPO={"suscripciones":"suscripción","comisiones":"comisión","alojamiento":"fijo"};
@@ -75,6 +77,19 @@ s+='<text transform="translate('+(x+bw/2+3)+','+(H-B+10)+') rotate(-40)" text-an
 pts.push([x+bw/2,y(lim(c))])});
 s+='<polyline points="'+pts.map(function(p){return p.join(",")}).join(" ")+'" fill="none" stroke="var(--tx)" stroke-width="2" stroke-dasharray="5 3"/>';
 pts.forEach(function(p){s+='<circle cx="'+p[0]+'" cy="'+p[1]+'" r="3" fill="var(--tx)"/>'});return s+'</svg>'}
+function exportarDash(){var el=document.getElementById("out");if(!rows.length||!el.innerHTML){alert("No hay dashboard que exportar.");return}
+if(typeof html2canvas==="undefined"){alert("No se cargó el módulo de imagen. Abre la app con conexión una vez.");return}
+var cs0=getComputedStyle(document.documentElement),bg=getComputedStyle(document.body).backgroundColor;
+var w=el.offsetWidth,hh=el.offsetHeight+60,k=Math.min(2,Math.sqrt(1.6e7/(w*hh)));
+var tit="Mis gastos · "+scope+" · "+(month==="Todos"?"media mensual":mlabel(month))+(persona==="Todas"?"":" · "+persona);
+var nombre="Dashboard_gastos_"+scope+"_"+(month==="Todos"?"media":month)+".png";
+html2canvas(el,{backgroundColor:bg,scale:k,onclone:function(doc){
+doc.querySelectorAll("svg *").forEach(function(n){["fill","stroke"].forEach(function(a){var v=n.getAttribute(a);if(v&&v.indexOf("var(")===0)n.setAttribute(a,cs0.getPropertyValue(v.slice(4,-1)).trim())})});
+doc.querySelectorAll(".wrap").forEach(function(n){n.style.overflow="visible"});
+var c=doc.getElementById("out"),t=doc.createElement("h1");t.textContent=tit;t.style.margin="0 0 10px";c.insertBefore(t,c.firstChild)}}).then(function(cv){
+cv.toBlob(function(b){var save=function(){var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=nombre;document.body.appendChild(a);a.click();a.remove()};
+var f=new File([b],nombre,{type:"image/png"});
+if(navigator.canShare&&navigator.canShare({files:[f]})){navigator.share({files:[f],title:tit}).catch(function(e){if(!e||e.name!=="AbortError")save()})}else save()},"image/png")}).catch(function(){alert("No se pudo generar la imagen. Alternativa: Compartir → Imprimir → Guardar como PDF.")})}
 function exportar(){if(!rows.length){alert("No hay datos para exportar.");return}
 var m2=monthsList().slice().reverse(),cm={};rows.forEach(function(r){var o=cm[r.c]||(cm[r.c]={});o[r.ym]=(o[r.ym]||0)+r.eur});
 var a=[["Categoría"].concat(m2.map(function(x){return mlabel(x)}),["Total"])];
